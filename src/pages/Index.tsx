@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import AdminPanel from '@/components/AdminPanel';
 import ProductCatalog from '@/components/ProductCatalog';
 import ShoppingCart from '@/components/ShoppingCart';
+import { Button } from '@/components/ui/button';
 
 interface Product {
   id: string;
@@ -257,12 +258,25 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="admin">
-            <AdminPanel
-              excelFile={excelFile}
-              onFileUpload={handleFileUpload}
-              onProductsLoaded={handleProductsLoaded}
-              texts={t}
-            />
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">Панель администратора</h2>
+                <a 
+                  href="/test-catalog.csv" 
+                  target="_blank"
+                  className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                >
+                  <Icon name="Download" className="w-4 h-4" />
+                  <span>Скачать тестовый CSV</span>
+                </a>
+              </div>
+              <AdminPanel
+                excelFile={excelFile}
+                onFileUpload={handleFileUpload}
+                onProductsLoaded={handleProductsLoaded}
+                texts={t}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="catalog">

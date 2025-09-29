@@ -1,0 +1,31 @@
+{
+  "tests": [
+    {
+      "name": "Test Excel parser with valid data",
+      "method": "POST",
+      "body": {
+        "fileData": "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,UEsDBBQAAAAIAAAAIQDDlN4PgwEAADEDAAANAAAAeGwvd29ya3NoZWV0cy9zaGVldDEueG1spJLLagIxFEDfJfQuJve+7I7HFlxJod20EGoxxsSZGW/NtOjr65gRKrQFyVlkce5JzkmycfOQ47YUpMGbTrlxlSlGfXCBBm+z1JFZ7+Pxqe+0ZrTnHzjnbcPIHDMgkkppWQqE1CKlaKnFmGTLSlJVaWCJjNEGBJVWCrxVKhClEAIhJZFK",
+        "filename": "catalog.xlsx"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "products": "array",
+        "categories": "array",
+        "total_products": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test missing file data",
+      "method": "POST", 
+      "body": {
+        "filename": "test.xlsx"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

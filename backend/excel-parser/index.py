@@ -1,16 +1,16 @@
 import json
 import base64
 from typing import Dict, Any, List, Optional
-import pandas as pd
-from io import BytesIO
+import csv
+from io import StringIO, BytesIO
 import re
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
-    Business: Парсит Excel файлы с каталогом канцтоваров и возвращает структурированные данные
+    Business: Парсит Excel файлы с каталогом канцтоваров со специальными ценами и скидками
     Args: event - dict с httpMethod, body содержащий base64 файл
-          context - объект с request_id, function_name
-    Returns: JSON с товарами для каталога
+          context - объект с request_id, function_name  
+    Returns: JSON с товарами для каталога с обработкой специальных цен
     '''
     method: str = event.get('httpMethod', 'POST')
     
@@ -49,91 +49,126 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Decode base64 file
         file_bytes = base64.b64decode(file_data.split(',')[-1])
         
-        # Read Excel file
-        df = pd.read_excel(BytesIO(file_bytes))
-        
-        # Clean column names
-        df.columns = df.columns.str.strip()
-        
-        # Map common column variations to standard names
-        column_mapping = {
-            'наименование': 'name',
-            'название': 'name', 
-            'товар': 'name',
-            'продукт': 'name',
-            'цена': 'price',
-            'стоимость': 'price',
-            'прайс': 'price',
-            'категория': 'category',
-            'группа': 'category',
-            'раздел': 'category',
-            'описание': 'description',
-            'комментарий': 'description',
-            'артикул': 'sku',
-            'код': 'sku',
-            'остаток': 'stock',
-            'количество': 'stock',
-            'наличие': 'inStock',
-            'в наличии': 'inStock',
-            'фото': 'image',
-            'изображение': 'image',
-            'картинка': 'image'
-        }
-        
-        # Normalize column names
-        normalized_columns = {}
-        for col in df.columns:
-            col_lower = col.lower().strip()
-            for key, value in column_mapping.items():
-                if key in col_lower:
-                    normalized_columns[col] = value
+        # Try to parse as CSV first (simpler approach)
+        try:
+            # Try different encodings
+            content = None
+            for encoding in ['utf-8', 'cp1251', 'windows-1251']:
+                try:
+                    content = file_bytes.decode(encoding)
                     break
-            else:
-                normalized_columns[col] = col_lower.replace(' ', '_')
+                except UnicodeDecodeError:
+                    continue
+            
+            if not content:
+                content = file_bytes.decode('utf-8', errors='ignore')
+            
+            # Parse CSV
+            csv_reader = csv.DictReader(StringIO(content), delimiter='\t')
+            rows = list(csv_reader)
+            
+        except Exception:
+            return {
+                'statusCode': 400,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Could not parse file. Please ensure it\'s a valid Excel/CSV file.'})
+            }
         
-        df = df.rename(columns=normalized_columns)
-        
-        # Process products
+        # Process products based on your column structure
         products = []
-        for idx, row in df.iterrows():
-            # Skip empty rows
-            if row.isna().all():
+        categories = set()
+        
+        for idx, row in enumerate(rows):
+            if not row or not any(row.values()):
                 continue
                 
+            # Map your specific columns
+            article = clean_text(row.get('Артикул', ''))
+            brand = clean_text(row.get('Бренд', ''))
+            name = clean_text(row.get('Наименование ', '') or row.get('Наименование', ''))
+            unit = clean_text(row.get('Ед. (единицы измерения)', ''))
+            recommended_price = parse_price(row.get('Цена (Рекомендуемая)', 0))
+            dealer_price = parse_price(row.get('Цена дилер (по которой идет рассчет)', 0))
+            special_offer = clean_text(row.get('Акция!!!', ''))
+            discount_percent = clean_text(row.get('% скидки', ''))
+            special_price = parse_price(row.get('Специальная цена!!!', ''))
+            package = clean_text(row.get('Упаковка (сколько единиц товара в большой коробке/средней коробки/малой коробки)', ''))
+            barcode = clean_text(row.get('Штрих-код', ''))
+            photo = clean_text(row.get('Фото', ''))
+            
+            if not name:
+                continue
+            
+            # Determine final price logic
+            has_special_pricing = bool(
+                (special_offer and special_offer not in ['', 'Новинка!!!']) or
+                discount_percent or
+                special_price > 0
+            )
+            
+            # Calculate prices
+            if special_price > 0:
+                final_price = special_price
+                base_price = dealer_price or recommended_price
+            elif special_offer and special_offer not in ['', 'Новинка!!!']:
+                final_price = parse_price(special_offer)
+                base_price = dealer_price or recommended_price
+            elif discount_percent:
+                discount_val = parse_price(discount_percent)
+                if discount_val > 0:
+                    if discount_val > 100:  # Assume it's a price, not percentage
+                        final_price = discount_val
+                    else:  # It's a percentage
+                        base = dealer_price or recommended_price
+                        final_price = base * (1 - discount_val / 100)
+                    base_price = dealer_price or recommended_price
+                else:
+                    final_price = dealer_price or recommended_price
+                    base_price = final_price
+            else:
+                final_price = dealer_price or recommended_price
+                base_price = final_price
+            
+            # Determine category from brand
+            category = brand if brand else 'Канцтовары'
+            categories.add(category)
+            
+            # Process image
+            image_url = process_image_path(photo)
+            
             product = {
-                'id': f"excel_{idx}",
-                'name': str(row.get('name', f'Товар {idx+1}')).strip(),
-                'price': parse_price(row.get('price', 0)),
-                'category': str(row.get('category', 'Без категории')).strip(),
-                'description': str(row.get('description', '')).strip(),
-                'sku': str(row.get('sku', '')).strip(),
-                'inStock': parse_stock_status(row.get('inStock', row.get('stock', True))),
-                'stock': parse_stock_quantity(row.get('stock', 0)),
-                'image': parse_image_url(row.get('image', ''))
+                'id': f"item_{idx}",
+                'name': name,
+                'article': article,
+                'brand': brand,
+                'category': category,
+                'price': round(final_price, 2),
+                'basePrice': round(base_price, 2),
+                'recommendedPrice': round(recommended_price, 2),
+                'unit': unit,
+                'package': package,
+                'barcode': barcode,
+                'image': image_url,
+                'inStock': True,
+                'hasSpecialPricing': has_special_pricing,
+                'specialOffer': special_offer,
+                'discountPercent': discount_percent,
+                'specialPrice': special_price if special_price > 0 else None,
+                'description': f"{brand} {name}".strip()
             }
-            
-            # Add extra fields from Excel
-            extra_fields = {}
-            for col, value in row.items():
-                if col not in ['name', 'price', 'category', 'description', 'sku', 'inStock', 'stock', 'image']:
-                    if pd.notna(value) and str(value).strip():
-                        extra_fields[col] = str(value).strip()
-            
-            if extra_fields:
-                product['extra_fields'] = extra_fields
             
             products.append(product)
         
-        # Get categories for filtering
-        categories = sorted(list(set([p['category'] for p in products if p['category']])))
+        categories_list = sorted(list(categories))
         
         result = {
+            'success': True,
             'products': products,
-            'categories': categories,
+            'categories': categories_list,
             'total_products': len(products),
             'filename': filename,
-            'columns_found': list(df.columns),
-            'processed_at': context.request_id
+            'processed_at': context.request_id,
+            'message': f'Обработано {len(products)} товаров из {len(categories_list)} категорий'
         }
         
         return {
@@ -150,14 +185,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({
-                'error': f'Error parsing Excel file: {str(e)}',
+                'success': False,
+                'error': f'Ошибка обработки файла: {str(e)}',
                 'request_id': context.request_id
-            })
+            }, ensure_ascii=False)
         }
+
+def clean_text(value) -> str:
+    """Clean text value"""
+    if not value or str(value).strip() in ['nan', 'None', '']:
+        return ''
+    return str(value).strip()
 
 def parse_price(price_value) -> float:
     """Parse price from various formats"""
-    if pd.isna(price_value):
+    if not price_value or str(price_value).strip() in ['', 'nan', 'None']:
         return 0.0
     
     price_str = str(price_value).strip()
@@ -171,57 +213,24 @@ def parse_price(price_value) -> float:
     except (ValueError, TypeError):
         return 0.0
 
-def parse_stock_status(stock_value) -> bool:
-    """Parse stock availability from various formats"""
-    if pd.isna(stock_value):
-        return True
-    
-    stock_str = str(stock_value).lower().strip()
-    
-    # Check for negative indicators
-    negative_indicators = ['нет', 'отсутствует', 'недоступно', 'закончился', 'false', '0', 'no', 'out']
-    if any(indicator in stock_str for indicator in negative_indicators):
-        return False
-    
-    # Check for positive indicators
-    positive_indicators = ['да', 'есть', 'в наличии', 'доступно', 'true', 'yes', 'available']
-    if any(indicator in stock_str for indicator in positive_indicators):
-        return True
-    
-    # Try to parse as number
-    try:
-        num = float(stock_str.replace(',', '.'))
-        return num > 0
-    except (ValueError, TypeError):
-        return True
-
-def parse_stock_quantity(stock_value) -> int:
-    """Parse stock quantity from various formats"""
-    if pd.isna(stock_value):
-        return 999
-    
-    stock_str = str(stock_value).strip()
-    # Extract numbers
-    numbers = re.findall(r'\d+', stock_str)
-    
-    if numbers:
-        return int(numbers[0])
-    
-    return 999
-
-def parse_image_url(image_value) -> str:
-    """Parse image URL or return placeholder"""
-    if pd.isna(image_value):
+def process_image_path(photo_path: str) -> str:
+    """Process image path from Excel"""
+    if not photo_path or photo_path.strip() == '':
         return '/img/dc9855aa-d3ba-40f6-91a6-c00afab470de.jpg'
     
-    image_str = str(image_value).strip()
+    photo_path = photo_path.strip()
     
-    # Check if it's a valid URL
-    if image_str.startswith(('http://', 'https://', '/')) and len(image_str) > 4:
-        return image_str
+    # If it's already a URL, return as is
+    if photo_path.startswith(('http://', 'https://')):
+        return photo_path
     
-    # If it's a filename, try to construct URL
-    if '.' in image_str and len(image_str) > 3:
-        return f'/images/{image_str}'
+    # If it's a relative path, make it absolute
+    if photo_path.startswith('/'):
+        return photo_path
     
+    # If it's just a filename, assume it's in images folder
+    if '.' in photo_path:
+        return f'/images/{photo_path}'
+    
+    # Default fallback
     return '/img/dc9855aa-d3ba-40f6-91a6-c00afab470de.jpg'

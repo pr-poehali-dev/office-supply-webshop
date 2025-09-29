@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Icon from '@/components/ui/icon';
 
 interface AdminPanelProps {
   excelFile: File | null;
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onProductsLoaded: (products: any[], categories: string[]) => void;
   texts: {
     uploadExcel: string;
     dragDrop: string;
@@ -15,8 +17,61 @@ interface AdminPanelProps {
 const AdminPanel: React.FC<AdminPanelProps> = ({
   excelFile,
   onFileUpload,
+  onProductsLoaded,
   texts
 }) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processResult, setProcessResult] = useState<{ success: boolean; message: string; } | null>(null);
+
+  const processExcelFile = async () => {
+    if (!excelFile) return;
+    
+    setIsProcessing(true);
+    setProcessResult(null);
+    
+    try {
+      // Convert file to base64
+      const fileData = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(excelFile);
+      });
+      
+      // Send to backend
+      const response = await fetch('https://functions.poehali.dev/5096196e-541f-4901-9827-5b22779bc4f2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileData,
+          filename: excelFile.name
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setProcessResult({ 
+          success: true, 
+          message: result.message || `Загружено ${result.total_products} товаров` 
+        });
+        onProductsLoaded(result.products, result.categories);
+      } else {
+        setProcessResult({ 
+          success: false, 
+          message: result.error || 'Ошибка обработки файла' 
+        });
+      }
+    } catch (error) {
+      setProcessResult({ 
+        success: false, 
+        message: `Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}` 
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
@@ -53,10 +108,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         
         {excelFile && (
           <div className="mt-6">
-            <Button className="w-full bg-primary hover:bg-blue-700">
-              <Icon name="Upload" className="w-4 h-4 mr-2" />
-              Обработать файл
+            <Button 
+              onClick={processExcelFile}
+              disabled={isProcessing}
+              className="w-full bg-primary hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              {isProcessing ? (
+                <>
+                  <Icon name="Loader2" className="w-4 h-4 mr-2 animate-spin" />
+                  Обработка файла...
+                </>
+              ) : (
+                <>
+                  <Icon name="Upload" className="w-4 h-4 mr-2" />
+                  Обработать файл
+                </>
+              )}
             </Button>
+          </div>
+        )}
+        
+        {processResult && (
+          <div className="mt-4">
+            <Alert className={processResult.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
+              <Icon 
+                name={processResult.success ? 'CheckCircle' : 'AlertCircle'} 
+                className={`w-4 h-4 ${processResult.success ? 'text-green-600' : 'text-red-600'}`} 
+              />
+              <AlertDescription className={processResult.success ? 'text-green-800' : 'text-red-800'}>
+                {processResult.message}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
       </CardContent>

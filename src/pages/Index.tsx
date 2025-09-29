@@ -14,6 +14,14 @@ interface Product {
   image: string;
   description: string;
   inStock: boolean;
+  article?: string;
+  brand?: string;
+  basePrice?: number;
+  recommendedPrice?: number;
+  hasSpecialPricing?: boolean;
+  specialOffer?: string;
+  unit?: string;
+  package?: string;
 }
 
 interface CartItem extends Product {
@@ -98,18 +106,26 @@ const Index = () => {
   });
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [language, setLanguage] = useState('ru');
+  const [products, setProducts] = useState<Product[]>(sampleProducts);
+  const [availableCategories, setAvailableCategories] = useState<string[]>(['Письменные принадлежности', 'Тетради и блокноты', 'Офисная техника']);
 
-  const categories = ['all', 'Письменные принадлежности', 'Тетради и блокноты', 'Офисная техника'];
+  const categories = ['all', ...availableCategories];
 
-  const filteredProducts = sampleProducts.filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
   const addToCart = (product: Product) => {
-    const discountMultiplier = (100 - dealerInfo.discount) / 100;
-    const finalPrice = Math.round(product.price * discountMultiplier);
+    // If product has special pricing, dealer discount doesn't apply
+    let finalPrice: number;
+    if (product.hasSpecialPricing) {
+      finalPrice = product.price; // Already calculated final price
+    } else {
+      const discountMultiplier = (100 - dealerInfo.discount) / 100;
+      finalPrice = Math.round(product.price * discountMultiplier);
+    }
     
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
@@ -121,6 +137,13 @@ const Index = () => {
     } else {
       setCart([...cart, { ...product, quantity: 1, finalPrice }]);
     }
+  };
+  
+  const handleProductsLoaded = (loadedProducts: any[], loadedCategories: string[]) => {
+    setProducts(loadedProducts);
+    setAvailableCategories(loadedCategories);
+    setSelectedCategory('all');
+    setActiveTab('catalog'); // Switch to catalog tab
   };
 
   const updateQuantity = (id: string, quantity: number) => {
@@ -220,6 +243,7 @@ const Index = () => {
             <AdminPanel
               excelFile={excelFile}
               onFileUpload={handleFileUpload}
+              onProductsLoaded={handleProductsLoaded}
               texts={t}
             />
           </TabsContent>

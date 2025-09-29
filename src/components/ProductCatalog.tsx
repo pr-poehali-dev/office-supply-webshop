@@ -15,6 +15,14 @@ interface Product {
   image: string;
   description: string;
   inStock: boolean;
+  article?: string;
+  brand?: string;
+  basePrice?: number;
+  recommendedPrice?: number;
+  hasSpecialPricing?: boolean;
+  specialOffer?: string;
+  unit?: string;
+  package?: string;
 }
 
 interface DealerInfo {
@@ -101,20 +109,48 @@ const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   className="w-full h-full object-cover hover:scale-110 transition-transform duration-200"
                 />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
-              <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
-              <Badge variant="secondary" className="mb-3 text-xs">
-                {product.category}
-              </Badge>
+              <div className="mb-2">
+                {product.article && (
+                  <div className="text-xs text-gray-500">Арт.: {product.article}</div>
+                )}
+                <h3 className="font-semibold text-gray-900 line-clamp-2">{product.name}</h3>
+                {product.brand && (
+                  <div className="text-sm text-gray-600">{product.brand}</div>
+                )}
+              </div>
+              
+              <div className="mb-3 space-y-1">
+                <Badge variant="secondary" className="text-xs">
+                  {product.category}
+                </Badge>
+                {product.hasSpecialPricing && (
+                  <Badge className="ml-2 text-xs bg-red-100 text-red-800">
+                    СПЕЦПРЕДЛОЖЕНИЕ!
+                  </Badge>
+                )}
+                {product.unit && (
+                  <div className="text-xs text-gray-500">Ед.: {product.unit}</div>
+                )}
+                {product.package && (
+                  <div className="text-xs text-gray-500">Упак.: {product.package}</div>
+                )}
+              </div>
+              
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-lg font-bold text-primary">
                     ₽{product.price}
                   </div>
-                  {dealerInfo.discount > 0 && (
-                    <div className="text-sm text-success-green">
-                      ₽{Math.round(product.price * (100 - dealerInfo.discount) / 100)} с учетом скидки
+                  {product.hasSpecialPricing ? (
+                    <div className="text-xs text-red-600">
+                      На данный товар скидка не распространяется
                     </div>
+                  ) : (
+                    dealerInfo.discount > 0 && (
+                      <div className="text-sm text-success-green">
+                        ₽{Math.round(product.price * (100 - dealerInfo.discount) / 100)} с учетом скидки
+                      </div>
+                    )
                   )}
                 </div>
                 <Button 

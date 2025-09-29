@@ -1,0 +1,26 @@
+{
+  "tests": [
+    {
+      "name": "Test catalog parser options",
+      "method": "OPTIONS",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "body": ""
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test missing file data",
+      "method": "POST", 
+      "body": {
+        "filename": "test.csv"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "success": false,
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

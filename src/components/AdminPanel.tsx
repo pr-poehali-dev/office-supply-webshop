@@ -38,7 +38,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       });
       
       // Send to backend
-      const response = await fetch('https://functions.poehali.dev/5096196e-541f-4901-9827-5b22779bc4f2', {
+      const response = await fetch('https://functions.poehali.dev/f6fba462-eb1a-48ca-b42c-b598648fca0c', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -49,7 +49,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         })
       });
       
-      const result = await response.json();
+      // Check if response is JSON or HTML error
+      const contentType = response.headers.get('Content-Type') || '';
+      let result;
+      
+      if (contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        // Server returned HTML error page
+        const errorText = await response.text();
+        throw new Error('Сервер вернул ошибку. Проверьте формат файла и попробуйте снова.');
+      }
       
       if (result.success) {
         setProcessResult({ 
@@ -86,7 +96,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         >
           <input
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.csv,.tsv,.txt"
             onChange={onFileUpload}
             className="hidden"
             id="excel-upload"
@@ -94,7 +104,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           <label htmlFor="excel-upload" className="cursor-pointer block">
             <Icon name="FileSpreadsheet" className="w-12 h-12 mx-auto text-gray-400 mb-4" />
             <p className="text-gray-600 mb-2">{texts.dragDrop}</p>
-            <p className="text-sm text-gray-500">Поддерживаются форматы: .xlsx, .xls</p>
+            <p className="text-sm text-gray-500">Поддерживаются форматы: .xlsx, .xls, .csv, .tsv</p>
+            <p className="text-xs text-gray-400 mt-2">
+              💡 Для Excel: сохраните как "Текст (разделители табуляции) .txt" или CSV
+            </p>
             {excelFile && (
               <div className="mt-4 p-3 bg-green-50 rounded-lg">
                 <p className="text-success-green font-medium flex items-center justify-center">

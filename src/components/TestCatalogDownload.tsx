@@ -14,7 +14,9 @@ CLIP-001,Brauberg,Скрепки металлические 28мм,уп,65,45,,,
 TAPE-005,Scotch,Скотч прозрачный 19мм х 33м,шт,180,125,10%,,,,4606782987654,/images/tape.jpg`;
 
   const downloadCSV = () => {
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    // Add BOM for proper UTF-8 encoding in Excel
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

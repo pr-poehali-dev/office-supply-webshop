@@ -158,8 +158,25 @@ const Index = () => {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && (file.type.includes('sheet') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
-      setExcelFile(file);
+    if (file) {
+      const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'text/csv', // .csv
+        'text/tab-separated-values', // .tsv
+        'text/plain' // .txt
+      ];
+      
+      const allowedExtensions = ['.xlsx', '.xls', '.csv', '.tsv', '.txt'];
+      
+      const isValidType = allowedTypes.includes(file.type) || 
+                          allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+      
+      if (isValidType) {
+        setExcelFile(file);
+      } else {
+        alert('Пожалуйста, выберите файл в формате Excel (.xlsx, .xls), CSV (.csv) или TSV (.tsv, .txt)');
+      }
     }
   };
 

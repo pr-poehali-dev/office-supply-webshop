@@ -86,14 +86,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             csv_reader = csv.DictReader(StringIO(content), delimiter=delimiter)
             rows = list(csv_reader)
+            
+            # Get column names for debugging
+            column_names = list(csv_reader.fieldnames) if csv_reader.fieldnames else []
+            
         except Exception as e:
+            # Include first few lines of content for debugging
+            preview = content[:500] if len(content) > 500 else content
             return {
                 'statusCode': 400,
                 'headers': {'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({
                     'success': False,
-                    'error': f'Ошибка парсинга файла: {str(e)}. Убедитесь, что файл в формате CSV или TSV.'
-                }),
+                    'error': f'Ошибка парсинга файла: {str(e)}',
+                    'debug_info': {
+                        'delimiter': delimiter,
+                        'content_preview': preview,
+                        'content_length': len(content)
+                    }
+                }, ensure_ascii=False),
                 'isBase64Encoded': False
             }
         
@@ -103,8 +114,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'headers': {'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({
                     'success': False,
-                    'error': 'Файл пустой или не содержит данных'
-                }),
+                    'error': 'Файл пустой или не содержит данных',
+                    'debug_info': {
+                        'column_names': column_names,
+                        'rows_count': len(rows),
+                        'delimiter': delimiter
+                    }
+                }, ensure_ascii=False),
                 'isBase64Encoded': False
             }
         

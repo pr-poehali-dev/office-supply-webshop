@@ -68,9 +68,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         });
         onProductsLoaded(result.products, result.categories);
       } else {
+        let errorMessage = result.error || 'Ошибка обработки файла';
+        
+        // Add debug info if available
+        if (result.debug_info) {
+          const debug = result.debug_info;
+          errorMessage += `\n\nДиагностика:\n`;
+          if (debug.column_names) {
+            errorMessage += `• Найденные колонки: ${debug.column_names.join(', ')}\n`;
+          }
+          if (debug.delimiter) {
+            errorMessage += `• Разделитель: "${debug.delimiter === '\t' ? 'табуляция' : debug.delimiter}"\n`;
+          }
+          if (debug.content_length) {
+            errorMessage += `• Размер содержимого: ${debug.content_length} символов\n`;
+          }
+          if (debug.rows_count !== undefined) {
+            errorMessage += `• Количество строк: ${debug.rows_count}\n`;
+          }
+        }
+        
         setProcessResult({ 
           success: false, 
-          message: result.error || 'Ошибка обработки файла' 
+          message: errorMessage
         });
       }
     } catch (error) {

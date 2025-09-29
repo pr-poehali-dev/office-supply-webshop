@@ -18,7 +18,13 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				'sans': ['Inter', 'sans-serif'],
+			},
 			colors: {
+				'dealer-blue': '#2563EB',
+				'success-green': '#10B981',
+				'light-gray': '#EF4444',
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

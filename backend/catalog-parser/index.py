@@ -132,19 +132,71 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not row or not any(row.values()):
                 continue
                 
-            # Get values with flexible column matching
-            article = get_column_value(row, ['Артикул', 'артикул', 'Article'])
-            brand = get_column_value(row, ['Бренд', 'бренд', 'Brand'])
-            name = get_column_value(row, ['Наименование', 'наименование', 'Name'])
-            unit = get_column_value(row, ['Ед.', 'Ед. (единицы измерения)', 'единицы измерения', 'Unit'])
-            recommended_price = parse_price(get_column_value(row, ['Цена (Рекомендуемая)', 'рекомендуемая цена', 'Recommended Price']))
-            dealer_price = parse_price(get_column_value(row, ['Цена дилер', 'Цена дилер (по которой идет рассчет)', 'дилерская цена', 'Dealer Price']))
-            special_offer = get_column_value(row, ['Акция!!!', 'акция', 'Special Offer'])
-            discount_percent = get_column_value(row, ['% скидки', 'процент скидки', 'Discount %'])
-            special_price = parse_price(get_column_value(row, ['Специальная цена!!!', 'специальная цена', 'Special Price']))
-            package = get_column_value(row, ['Упаковка', 'упаковка', 'Package'])
-            barcode = get_column_value(row, ['Штрих-код', 'штрихкод', 'Barcode'])
-            photo = get_column_value(row, ['Фото', 'фото', 'Photo', 'Image'])
+            # Get values with very flexible column matching
+            article = get_column_value(row, [
+                'Артикул', 'артикул', 'Article', 'Код', 'код', 'ID', 'id', 'SKU', 'sku',
+                'Арт', 'арт', 'Артикул товара', 'Код товара'
+            ])
+            
+            brand = get_column_value(row, [
+                'Бренд', 'бренд', 'Brand', 'Производитель', 'производитель', 'Марка', 'марка',
+                'Торговая марка', 'торговая марка', 'Изготовитель', 'изготовитель'
+            ])
+            
+            name = get_column_value(row, [
+                'Наименование', 'наименование', 'Name', 'Название', 'название', 'Товар', 'товар',
+                'Описание', 'описание', 'Наименование товара', 'название товара'
+            ])
+            
+            unit = get_column_value(row, [
+                'Ед.', 'Ед. (единицы измерения)', 'единицы измерения', 'Unit', 'Ед.изм',
+                'Единица', 'единица', 'Упаковка', 'упаковка', 'шт', 'Шт', 'уп', 'Уп'
+            ])
+            # Price columns with very flexible matching
+            recommended_price = parse_price(get_column_value(row, [
+                'Цена (Рекомендуемая)', 'рекомендуемая цена', 'Recommended Price',
+                'Розничная цена', 'розничная цена', 'Цена розница', 'цена розница',
+                'РРЦ', 'ррц', 'Цена', 'цена', 'Price', 'price'
+            ]))
+            
+            dealer_price = parse_price(get_column_value(row, [
+                'Цена дилер (по которой идет рассчет)', 'цена дилер', 'Dealer Price',
+                'Оптовая цена', 'оптовая цена', 'Цена опт', 'цена опт',
+                'Базовая цена', 'базовая цена', 'Себестоимость', 'себестоимость'
+            ]))
+            
+            special_offer = get_column_value(row, [
+                'Акция!!!', 'акция', 'Special Offer', 'Промо', 'промо',
+                'Спецпредложение', 'спецпредложение', 'Акция', 'Новинка', 'новинка'
+            ])
+            
+            discount_percent = get_column_value(row, [
+                '% скидки', 'скидка', 'Discount', 'Скидка %', 'скидка %',
+                'Процент скидки', 'процент скидки', 'Дисконт', 'дисконт'
+            ])
+            
+            special_price = parse_price(get_column_value(row, [
+                'Специальная цена!!!', 'специальная цена', 'Special Price',
+                'Акционная цена', 'акционная цена', 'Цена со скидкой', 'цена со скидкой',
+                'Промо цена', 'промо цена', 'Sale Price', 'sale price'
+            ]))
+            
+            # Additional fields with flexible matching
+            package = get_column_value(row, [
+                'Упаковка (сколько единиц товара в большой коробке/средней коробки/малой коробки)',
+                'упаковка', 'Package', 'Кратность', 'кратность', 'В упаковке', 'в упаковке',
+                'Количество в упаковке', 'количество в упаковке', 'Коробка', 'коробка'
+            ])
+            
+            barcode = get_column_value(row, [
+                'Штрих-код', 'штрих-код', 'Barcode', 'ШК', 'шк', 'EAN', 'ean',
+                'Штрихкод', 'штрихкод', 'Код EAN', 'код ean'
+            ])
+            
+            photo = get_column_value(row, [
+                'Фото', 'фото', 'Photo', 'Image', 'Изображение', 'изображение',
+                'Картинка', 'картинка', 'Фотография', 'фотография', 'URL фото', 'url фото'
+            ])
             
             if not name:
                 continue
@@ -208,6 +260,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         categories_list = sorted(list(categories))
         
+        # Include debug info about found columns and mapping
+        debug_info = {
+            'column_names': column_names,
+            'delimiter': delimiter,
+            'content_length': len(content),
+            'rows_count': len(rows),
+            'sample_mapping': {
+                'detected_columns': column_names[:10] if column_names else [],  # First 10 columns
+                'sample_row': dict(list(rows[0].items())[:5]) if rows else {}  # First 5 fields of first row
+            }
+        }
+        
         result = {
             'success': True,
             'products': products,
@@ -215,7 +279,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'total_products': len(products),
             'filename': filename,
             'processed_at': context.request_id,
-            'message': f'Обработано {len(products)} товаров из {len(categories_list)} категорий'
+            'message': f'Обработано {len(products)} товаров из {len(categories_list)} категорий',
+            'debug_info': debug_info
         }
         
         return {
@@ -241,16 +306,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
 def get_column_value(row: Dict[str, str], possible_names: List[str]) -> str:
-    """Get value from row by trying different column names"""
+    """Get value from row by trying different column names with smart matching"""
     for name in possible_names:
         # Exact match
         if name in row:
-            return row[name] or ''
+            return str(row[name] or '').strip()
         
         # Case insensitive match
         for key in row.keys():
             if key.lower().strip() == name.lower().strip():
-                return row[key] or ''
+                return str(row[key] or '').strip()
+    
+    # Partial match - check if any pattern is contained in column names
+    for name in possible_names:
+        name_lower = name.lower().strip()
+        for key in row.keys():
+            key_lower = key.lower().strip()
+            # Check if name is contained in key or vice versa
+            if (name_lower in key_lower and len(name_lower) > 2) or (key_lower in name_lower and len(key_lower) > 2):
+                return str(row[key] or '').strip()
+    
+    return ''
     
     return ''
 

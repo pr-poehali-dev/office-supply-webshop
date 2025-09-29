@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Icon from '@/components/ui/icon';
+import ColumnMappingDialog from './ColumnMappingDialog';
 
 interface AdminPanelProps {
   excelFile: File | null;
@@ -22,6 +23,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<{ success: boolean; message: string; } | null>(null);
+  const [showColumnMapping, setShowColumnMapping] = useState(false);
+  const [detectedColumns, setDetectedColumns] = useState<string[]>([]);
+  const [fileToProcess, setFileToProcess] = useState<File | null>(null);
 
   const processExcelFile = async () => {
     if (!excelFile) return;
@@ -67,6 +71,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           message: result.message || `Загружено ${result.total_products} товаров` 
         });
         onProductsLoaded(result.products, result.categories);
+      } else if (result.debug_info && result.debug_info.detected_columns) {
+        // Show column mapping dialog if columns detected but parsing failed
+        setDetectedColumns(result.debug_info.detected_columns);
+        setFileToProcess(excelFile);
+        setShowColumnMapping(true);
+        setProcessResult({ 
+          success: false, 
+          message: 'Обнаружены колонки файла. Настройте соответствие для правильной обработки.' 
+        });
       } else {
         let errorMessage = result.error || 'Ошибка обработки файла';
         
@@ -102,7 +115,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       setIsProcessing(false);
     }
   };
-  return (
+  return (<>
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
@@ -176,7 +189,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         )}
       </CardContent>
     </Card>
-  );
+    
+    <ColumnMappingDialog
+      open={showColumnMapping}
+      onClose={() => setShowColumnMapping(false)}
+      detectedColumns={detectedColumns}
+      onConfirm={(mapping) => {
+        console.log('Column mapping confirmed:', mapping);
+        // Here you could send the mapping to backend for custom processing
+        setShowColumnMapping(false);
+      }}
+    />
+  </>;
 };
 
 export default AdminPanel;
